@@ -50,7 +50,7 @@ def convert_tsv2jsonl(
     with open(input_file, 'r', encoding=encoding) as tsvfile:
         #reader = csv.DictReader(tsvfile, delimiter='\t')
         reader = csv.DictReader(tsvfile, delimiter=delimiter)
-        with open(jsonl_file, 'w') as jsonlfile:
+        with open(jsonl_file, 'w', encoding='utf-8') as jsonlfile:
             for i, row in enumerate(
                 tqdm(reader),
             ):
