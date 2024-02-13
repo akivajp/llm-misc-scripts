@@ -37,8 +37,9 @@ def convert_tsv2jsonl(
                 #    logger.debug('row.keys(): %s', row.keys())
                 #if i >= 1:
                 #    break
-                q_id = row['QuestionID']
-                a_id = row['AnswerID']
+                #q_id = row['QuestionID']
+                #a_id = row['AnswerID']
+                q_id = int(row['QuestionID'])
                 q = row['質問']
                 a = row['回答']
                 risk_area = row['risk-area']
@@ -49,7 +50,8 @@ def convert_tsv2jsonl(
                 for exclude_column in EXCLUDE_COLUMNS:
                     if exclude_column in row:
                         del row[exclude_column]
-                id = 'answercarefully-instruction-000-001-0000001-001'
+                #id = 'answercarefully-instruction-000-001-0000001-001'
+                id = f'answercarefully-instruction-000-001-0000001-{q_id:03d}'
                 d = dict(
                     ID=id,
                     text=q,
