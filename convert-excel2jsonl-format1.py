@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import math
 import os.path
 import unicodedata
 
@@ -12,6 +13,15 @@ from tqdm.auto import tqdm
 EXCLUDE_FLAGS = [
     2, 3, 9,
     '2', '3' , '9', 'R',
+]
+
+META_SPLIT_DELIM = ';'
+META_SPLIT_FIELDS = [
+    'task',
+    'prospective',
+    'domain',
+    'source-to-answer',
+    'output-type',
 ]
 
 META_MAP = {
@@ -53,39 +63,73 @@ META_MAP = {
 }
 
 def normalize(text):
+    '''
+    文字列の正規化
+    '''
     if isinstance(text, str):
         text = text.strip()
         return unicodedata.normalize('NFKC', text)
     return text
 
-#map_id_pair_to_row = dict()
+def get_meta_data(
+    row: pd.Series,
+):
+    '''
+    メタデータの取得
+    '''
+    meta = {}
+    for key, row_keys in META_MAP.items():
+        found = False
+        for row_key in row_keys:
+            if row_key in row:
+                value = row[row_key]
+                value = normalize(value)
+                if isinstance(value,float) and math.isnan(value):
+                    if key in META_SPLIT_FIELDS:
+                        value = ''
+                if key in META_SPLIT_FIELDS:
+                    value = value.split(META_SPLIT_DELIM)
+                if key == 'time-dependency':
+                    if value == '時間依存':
+                        value = True
+                    elif value == '':
+                        value = False
+                    elif isinstance(value,float) and np.isnan(value):
+                        value = False
+                    else:
+                        raise ValueError(f'Invalid time-dependency: {value}')
+                meta[key] = value
+                found = True
+                break
+        if not found:
+            raise ValueError(f'No {key}')
+    return meta
+
 map_question_id_to_answers = {}
 map_question_to_id = {}
 stat = {
     'num_questions': 0,
     'max_num_answers': 0,
 }
-#num_questions = 0
-#max_num_answers = 0
 
 def convert_excel2jsonl(
     input_path,
-    #jsonl_file,
     id_prefix,
     question_index_length,
     answer_index_length,
 ):
-    #global num_questions
-    #global max_num_answers
+    '''
+    Excelファイルを読み込んでJSONL形式で出力
+    '''
     df = pd.read_excel(input_path)
     rows = []
-    jsonl_file = os.path.splitext(input_path)[0] + '.jsonl'
+    output_jsonl_file = os.path.splitext(input_path)[0] + '.jsonl'
     #logger.debug('# df: %s', df)
-    with open(jsonl_file, 'w', encoding='utf-8') as jsonlfile:
+    with open(output_jsonl_file, 'w', encoding='utf-8') as f_jsonl:
         for i, row in tqdm(
             df.iterrows(),
             total=len(df),
-            desc=f'Converting {input_path} to {jsonl_file}'
+            desc=f'Converting {input_path} to {output_jsonl_file}'
         ):
             #if i == 0:
             #    logger.debug('row: %s', row)
@@ -101,6 +145,7 @@ def convert_excel2jsonl(
                     a = row['回答']
                 else:
                     raise ValueError('No 回答 or 作成した回答')
+                a = normalize(a)
                 flg_q = row['flg_Q']
                 flg_a = row['flg_A']
                 if not q or not a:
@@ -129,16 +174,7 @@ def convert_excel2jsonl(
                         stat['max_num_answers'] = a_id
                 else:
                     raise ValueError(f'Duplicated Answer: {answers[a_id]}')
-                meta = {}
-                for key, values in META_MAP.items():
-                    found = False
-                    for value in values:
-                        if value in row:
-                            meta[key] = row[value]
-                            found = True
-                            break
-                    if not found:
-                        raise ValueError(f'No {key}')
+                meta = get_meta_data(row)
                 ref = meta.get('output-reference')
                 if isinstance(ref, str):
                     ref = ref.strip().split('\n')
@@ -171,7 +207,7 @@ def convert_excel2jsonl(
             str_question_index = str(q_id).zfill(question_index_length)
             str_answer_index = str(a_id).zfill(answer_index_length)
             row['ID'] = f'{id_prefix}-{str_question_index}-{str_answer_index}'
-            jsonlfile.write(json.dumps(row, ensure_ascii=False) + '\n')
+            f_jsonl.write(json.dumps(row, ensure_ascii=False) + '\n')
 
 if __name__ == '__main__':
     import argparse
