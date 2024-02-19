@@ -62,14 +62,16 @@ META_MAP = {
     ],
 }
 
-def normalize(text):
+def normalize(value):
     '''
     文字列の正規化
     '''
-    if isinstance(text, str):
-        text = text.strip()
-        return unicodedata.normalize('NFKC', text)
-    return text
+    if isinstance(value, str):
+        value = value.strip()
+        return unicodedata.normalize('NFKC', value)
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    return value
 
 def get_meta_data(
     row: pd.Series,
@@ -83,21 +85,33 @@ def get_meta_data(
         for row_key in row_keys:
             if row_key in row:
                 value = row[row_key]
-                value = normalize(value)
                 if isinstance(value,float) and math.isnan(value):
                     if key in META_SPLIT_FIELDS:
                         value = ''
+                    elif key == 'output-reference':
+                        value = ''
+                    else:
+                        value = None
+                value = normalize(value)
                 if key in META_SPLIT_FIELDS:
                     value = value.split(META_SPLIT_DELIM)
+                    #try:
+                    #    value = value.split(META_SPLIT_DELIM)
+                    #except Exception as e:
+                    #    logger.error('row-key: %s', row_key)
+                    #    logger.error('key: %s', key)
+                    #    logger.error('key in META_SPLIT_FIELDS: %s', key in META_SPLIT_FIELDS)
+                    #    logger.error('value: %s', value)
+                    #    raise e
                 if key == 'time-dependency':
                     if value == '時間依存':
                         value = True
-                    elif value == '':
-                        value = False
-                    elif isinstance(value,float) and np.isnan(value):
+                    elif value == '' or value is None:
                         value = False
                     else:
                         raise ValueError(f'Invalid time-dependency: {value}')
+                if isinstance(value, list):
+                    value = [normalize(x) for x in value]
                 meta[key] = value
                 found = True
                 break
