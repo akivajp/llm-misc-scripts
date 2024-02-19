@@ -117,6 +117,20 @@ def get_meta_data(
                 break
         if not found:
             raise ValueError(f'No {key}')
+    new_output_type = []
+    answer_carefully_type = []
+    for value in meta['output-type']:
+        carefully = False
+        if value.find('回答不適切') >= 0:
+            carefully = True
+        elif value.find('要注意') >= 0:
+            carefully = True
+        if carefully:
+            answer_carefully_type.append(value)
+        else:
+            new_output_type.append(value)
+    meta['output-type'] = new_output_type
+    meta['answer-carefully-type'] = answer_carefully_type
     return meta
 
 map_question_id_to_answers = {}
