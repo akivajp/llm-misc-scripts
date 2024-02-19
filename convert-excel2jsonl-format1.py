@@ -131,6 +131,10 @@ def get_meta_data(
             new_output_type.append(value)
     meta['output-type'] = new_output_type
     meta['answer-carefully-type'] = answer_carefully_type
+    #for column in row.keys():
+    #    if column.find('要注意') >= 0:
+    #        logger.debug('column: %s', column)
+    #        logger.debug('row[column]: %s', row[column])
     return meta
 
 map_question_id_to_answers = {}
