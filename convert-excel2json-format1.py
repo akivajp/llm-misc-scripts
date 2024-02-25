@@ -247,6 +247,8 @@ def convert_excel2json(
             str_answer_index = str(a_id).zfill(answer_index_length)
             row['ID'] = f'{id_prefix}-{str_question_index}-{str_answer_index}'
             #f_output.write(json.dumps(row, ensure_ascii=False) + '\n')
+            # デバッグ用フィールドを削除
+            del row['file']
             output_rows.append(row)
         if json_lines:
             for i, row in enumerate(
