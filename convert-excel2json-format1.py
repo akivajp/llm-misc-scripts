@@ -139,6 +139,8 @@ def get_meta_data(
 
 map_question_id_to_answers = {}
 map_question_to_id = {}
+skipped_carefully = []
+skipped_not_carefully = []
 stat = {
     'num_questions': 0,
     'max_num_answers': 0,
@@ -185,11 +187,35 @@ def convert_excel2json(
                 a = normalize(a)
                 flg_q = row['flg_Q']
                 flg_a = row['flg_A']
+                meta = get_meta_data(row)
                 if not q or not a:
                     continue
-                if flg_q in EXCLUDE_FLAGS:
-                    continue
-                if flg_a in EXCLUDE_FLAGS:
+                #if flg_q in EXCLUDE_FLAGS:
+                #    continue
+                #if flg_a in EXCLUDE_FLAGS:
+                #    continue
+                if flg_q in EXCLUDE_FLAGS or flg_a in EXCLUDE_FLAGS:
+                    skip = {
+                        'file': os.path.basename(input_path),
+                        'text-producer': meta.get('text-producer'),
+                        'output-producer': meta.get('output-producer'),
+                        'flg_q': flg_q,
+                        'flg_a': flg_a,
+                        'text': q,
+                        'output': a,
+                        'task': str.join(';', meta['task']),
+                        'prospective': str.join(';', meta['prospective']),
+                        'time-dependency': meta['time-dependency'],
+                        'domain': str.join(';', meta['domain']),
+                        'source-to-answer': str.join(';', meta['source-to-answer']),
+                        'output-type': str.join(';', meta['output-type']),
+                        'answer-carefully-type': str.join(';', meta['answer-carefully-type']),
+                        'output-reference': meta['output-reference'],
+                    }
+                    if len(meta['answer-carefully-type']) > 0:
+                        skipped_carefully.append(skip)
+                    else:
+                        skipped_not_carefully.append(skip)
                     continue
                 q_id = map_question_to_id.get(q)
                 if q_id is None:
@@ -211,7 +237,6 @@ def convert_excel2json(
                         stat['max_num_answers'] = a_id
                 else:
                     raise ValueError(f'Duplicated Answer: {answers[a_id]}')
-                meta = get_meta_data(row)
                 ref = meta.get('output-reference')
                 if isinstance(ref, str):
                     ref = ref.strip().split('\n')
@@ -246,7 +271,6 @@ def convert_excel2json(
             str_question_index = str(q_id).zfill(question_index_length)
             str_answer_index = str(a_id).zfill(answer_index_length)
             row['ID'] = f'{id_prefix}-{str_question_index}-{str_answer_index}'
-            #f_output.write(json.dumps(row, ensure_ascii=False) + '\n')
             # デバッグ用フィールドを削除
             del row['file']
             output_rows.append(row)
@@ -297,6 +321,13 @@ def merge_multi(
         else:
             f.write(json.dumps(multi_rows, ensure_ascii=False, indent=indent))
 
+def export_csv_skipped(
+    rows,
+    export_csv_skipped_path,
+):
+    df = pd.DataFrame(rows)
+    df.to_csv(export_csv_skipped_path, index=False, encoding='utf-8-sig')
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -327,6 +358,14 @@ if __name__ == '__main__':
         '--merge-multi-path', '-M',
         help='Path to merge multi-QA JSON file',
     )
+    parser.add_argument(
+        '--export-csv-skipped-carefully',
+        help='Path to export skipped carefully CSV file',
+    )
+    parser.add_argument(
+        '--export-csv-skipped-not-carefully',
+        help='Path to export skipped not-carefully CSV file',
+    )
     args = parser.parse_args()
     logger.debug('args: %s', args)
     for input_file in args.input_files:
@@ -348,4 +387,15 @@ if __name__ == '__main__':
             indent=args.indent,
             merge_multi_path=args.merge_multi_path,
         )
+    if args.export_csv_skipped_carefully:
+        export_csv_skipped(
+            skipped_carefully,
+            args.export_csv_skipped_carefully,
+        )
+    if args.export_csv_skipped_not_carefully:
+        export_csv_skipped(
+            skipped_not_carefully,
+            args.export_csv_skipped_not_carefully,
+        )
+    logger.info('stat: %s', stat)
         
