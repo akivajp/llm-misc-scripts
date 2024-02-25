@@ -149,19 +149,24 @@ def convert_excel2jsonl(
     id_prefix,
     question_index_length,
     answer_index_length,
+    json_lines,
+    indent: int,
 ):
     '''
     Excelファイルを読み込んでJSONL形式で出力
     '''
     df = pd.read_excel(input_path)
     rows = []
-    output_jsonl_file = os.path.splitext(input_path)[0] + '.jsonl'
+    if json_lines:
+        output_file = os.path.splitext(input_path)[0] + '.jsonl'
+    else:
+        output_file = os.path.splitext(input_path)[0] + '.json'
     #logger.debug('# df: %s', df)
-    with open(output_jsonl_file, 'w', encoding='utf-8') as f_jsonl:
+    with open(output_file, 'w', encoding='utf-8') as f_output:
         for i, row in tqdm(
             df.iterrows(),
             total=len(df),
-            desc=f'Converting {input_path} to {output_jsonl_file}'
+            desc=f'Converting {input_path} to {output_file}'
         ):
             #if i == 0:
             #    logger.debug('row: %s', row)
@@ -231,6 +236,7 @@ def convert_excel2jsonl(
             raise ValueError(f'question_index_length: {question_index_length}')
         if answer_index_length < min_answer_index_length:
             raise ValueError(f'answer_index_length: {answer_index_length}')
+        output_rows = []
         for i, row in enumerate(
             tqdm(rows),
         ):
@@ -239,7 +245,18 @@ def convert_excel2jsonl(
             str_question_index = str(q_id).zfill(question_index_length)
             str_answer_index = str(a_id).zfill(answer_index_length)
             row['ID'] = f'{id_prefix}-{str_question_index}-{str_answer_index}'
-            f_jsonl.write(json.dumps(row, ensure_ascii=False) + '\n')
+            #f_output.write(json.dumps(row, ensure_ascii=False) + '\n')
+            output_rows.append(row)
+        if json_lines:
+            for i, row in enumerate(
+                tqdm(output_rows),
+            ):
+                f_output.write(json.dumps(row, ensure_ascii=False) + '\n'
+            )
+        else:
+            f_output.write(
+                json.dumps(output_rows, ensure_ascii=False, indent=indent)
+            )
 
 if __name__ == '__main__':
     import argparse
@@ -247,12 +264,21 @@ if __name__ == '__main__':
     parser.add_argument('input_files', nargs='+', help='Input Excel files')
     parser.add_argument('--id-prefix', '-P', required=True, help='ID prefix')
     parser.add_argument(
+        '--json-lines', '--lines', '-L',
+        action='store_true',
+        help='Output JSON Lines file'
+    )
+    parser.add_argument(
         '--question-index-length', '-Q',
         type=int, default=7, help='Question Index Length'
     )
     parser.add_argument(
         '--answer-index-length', '-A',
         type=int, default=3, help='Answer Index Length'
+    )
+    parser.add_argument(
+        '--indent', '-I',
+        type=int, default=2, help='Indent'
     )
     args = parser.parse_args()
     logger.debug('args: %s', args)
@@ -262,4 +288,6 @@ if __name__ == '__main__':
             id_prefix=args.id_prefix,
             question_index_length=args.question_index_length,
             answer_index_length=args.answer_index_length,
+            json_lines=args.json_lines,
+            indent=args.indent,
         )
