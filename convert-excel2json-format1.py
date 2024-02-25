@@ -144,7 +144,7 @@ stat = {
     'max_num_answers': 0,
 }
 
-def convert_excel2jsonl(
+def convert_excel2json(
     input_path,
     id_prefix,
     question_index_length,
@@ -227,6 +227,7 @@ def convert_excel2jsonl(
                 text=q,
                 output=a,
                 meta=meta,
+                file=input_path,
             )
             rows.append(d)
             answers.append(d)
@@ -258,6 +259,42 @@ def convert_excel2jsonl(
                 json.dumps(output_rows, ensure_ascii=False, indent=indent)
             )
 
+def merge_single(
+    indent:int,
+    merge_single_path: str,
+):
+    single_rows = []
+    for q_id, answers in map_question_id_to_answers.items():
+        if len(answers) != 1:
+            continue
+        answer = answers[0]
+        single_rows.append(answer)
+    single_rows.sort(key=lambda x: x['ID'])
+    with open(merge_single_path, 'w', encoding='utf-8') as f:
+        if merge_single_path.endswith('.jsonl'):
+            for row in single_rows:
+                f.write(json.dumps(row, ensure_ascii=False) + '\n')
+        else:
+            f.write(json.dumps(single_rows, ensure_ascii=False, indent=indent))
+
+def merge_multi(
+    indent:int,
+    merge_multi_path: str,
+):
+    multi_rows = []
+    for q_id, answers in map_question_id_to_answers.items():
+        if len(answers) <= 1:
+            continue
+        for answer in answers:
+            multi_rows.append(answer)
+    multi_rows.sort(key=lambda x: x['ID'])
+    with open(merge_multi_path, 'w', encoding='utf-8') as f:
+        if merge_multi_path.endswith('.jsonl'):
+            for row in multi_rows:
+                f.write(json.dumps(row, ensure_ascii=False) + '\n')
+        else:
+            f.write(json.dumps(multi_rows, ensure_ascii=False, indent=indent))
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -280,10 +317,18 @@ if __name__ == '__main__':
         '--indent', '-I',
         type=int, default=2, help='Indent'
     )
+    parser.add_argument(
+        '--merge-single-path', '-S',
+        help='Path to merge single QA JSON file',
+    )
+    parser.add_argument(
+        '--merge-multi-path', '-M',
+        help='Path to merge multi-QA JSON file',
+    )
     args = parser.parse_args()
     logger.debug('args: %s', args)
     for input_file in args.input_files:
-        convert_excel2jsonl(
+        convert_excel2json(
             input_file,
             id_prefix=args.id_prefix,
             question_index_length=args.question_index_length,
@@ -291,3 +336,14 @@ if __name__ == '__main__':
             json_lines=args.json_lines,
             indent=args.indent,
         )
+    if args.merge_single_path:
+        merge_single(
+            indent=args.indent,
+            merge_single_path=args.merge_single_path,
+        )
+    if args.merge_multi_path:
+        merge_multi(
+            indent=args.indent,
+            merge_multi_path=args.merge_multi_path,
+        )
+        
