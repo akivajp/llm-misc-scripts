@@ -327,6 +327,15 @@ def export_csv_skipped(
 ):
     df = pd.DataFrame(rows)
     df.to_csv(export_csv_skipped_path, index=False, encoding='utf-8-sig')
+    #df.to_csv(export_csv_skipped_path, index=False, encoding='cp932')
+    #df.to_csv(export_csv_skipped_path, index=False, encoding='shift-jis')
+
+def export_excel_skipped(
+    rows,
+    export_excel_skipped_path,
+):
+    df = pd.DataFrame(rows)
+    df.to_excel(export_excel_skipped_path, index=False)
 
 if __name__ == '__main__':
     import argparse
@@ -366,6 +375,14 @@ if __name__ == '__main__':
         '--export-csv-skipped-not-carefully',
         help='Path to export skipped not-carefully CSV file',
     )
+    parser.add_argument(
+        '--export-excel-skipped-carefully',
+        help='Path to export skipped carefully Excel file',
+    )
+    parser.add_argument(
+        '--export-excel-skipped-not-carefully',
+        help='Path to export skipped not-carefully Excel file',
+    )
     args = parser.parse_args()
     logger.debug('args: %s', args)
     for input_file in args.input_files:
@@ -396,6 +413,16 @@ if __name__ == '__main__':
         export_csv_skipped(
             skipped_not_carefully,
             args.export_csv_skipped_not_carefully,
+        )
+    if args.export_excel_skipped_carefully:
+        export_excel_skipped(
+            skipped_carefully,
+            args.export_excel_skipped_carefully,
+        )
+    if args.export_excel_skipped_not_carefully:
+        export_excel_skipped(
+            skipped_not_carefully,
+            args.export_excel_skipped_not_carefully,
         )
     logger.info('stat: %s', stat)
         
