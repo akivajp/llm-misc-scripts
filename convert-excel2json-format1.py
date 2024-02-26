@@ -59,6 +59,7 @@ META_MAP = {
     'output-reference': [
         '参考サイト【回答】',
         '参照サイト（回答）',
+        '参考サイトURL【回答】',
     ],
 }
 
@@ -176,7 +177,10 @@ def convert_excel2json(
             #if i >= 1:
             #    break
             try:
-                q = row['書き換えた質問文']
+                if '書き換えた質問文' in row:
+                    q = row['書き換えた質問文']
+                elif '質問' in row:
+                    q = row['質問']
                 q = normalize(q)
                 if '作成した回答' in row:
                     a = row['作成した回答']
