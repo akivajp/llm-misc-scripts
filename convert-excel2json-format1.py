@@ -27,6 +27,16 @@ META_SPLIT_FIELDS = [
     'output-type',
 ]
 
+CONVERT_MAP = {
+    'domain': {
+        #'気候': '気象',
+        #'理科': '科学',
+        #'生物のグループ': '生物名のグループ',
+        #'人名': '人物',
+        #'金融': '経済',
+    }
+}
+
 META_MAP = {
     'task': [
         '操作',
@@ -119,6 +129,8 @@ def get_meta_data(
                         #if elem:
                         #    new_values.append(normalize(elem))
                     value = [elem for elem in value if elem]
+                    if key in CONVERT_MAP:
+                        value = [CONVERT_MAP[key].get(x, x) for x in value]
                     #value = new_values
                     #if not new_values:
                     #if not value and not skip:
@@ -156,19 +168,14 @@ def get_meta_data(
             new_output_type.append(value)
     meta['output-type'] = new_output_type
     meta['alert-type'] = alert_type
-    #if ';' in str(meta['text-producer']):
-    #    raise ValueError(f'Invalid text-producer: {meta["text-producer"]}')
-    #if ';' in str(meta['output-producer']):
-    #    if meta['output-producer'] == '12;9':
-    #        pass
-    #    elif meta['output-producer'] == '11;8':
-    #        pass
-    #    else:
-    #        raise ValueError(f'Invalid output-producer: {meta["output-producer"]}')
-    meta['text-producer'] = str(meta['text-producer'])
-    meta['output-producer'] = str(meta['output-producer'])
-    #meta['text-producer'] = int(meta['text-producer'])
-    #meta['output-producer'] = int(meta['output-producer'])
+    if ';' in str(meta['text-producer']):
+        raise ValueError(f'Invalid text-producer: {meta["text-producer"]}')
+    if ';' in str(meta['output-producer']):
+        raise ValueError(f'Invalid output-producer: {meta["output-producer"]}')
+    #meta['text-producer'] = str(meta['text-producer'])
+    #meta['output-producer'] = str(meta['output-producer'])
+    meta['text-producer'] = int(meta['text-producer'])
+    meta['output-producer'] = int(meta['output-producer'])
     #if '' in meta['domain']:
     #    raise ValueError(f'Invalid domain: {meta["domain"]}')
     #if '' in meta['output-type']:
@@ -317,15 +324,17 @@ def convert_excel2json(
                 key for key, value in meta.items()
                 if value == [] and key not in ['output-reference', 'alert-type']
             ]
-            #if empty_keys:
-            #    #problem_row = dict(
-            #    #    #file = os.path.basename(input_path),
-            #    #    empty_keys = empty_keys,
-            #    #    **d,
-            #    #)
+            if empty_keys:
+                problem_row = {
+                    'file': os.path.basename(input_path),
+                    'empty_keys': empty_keys,
+                }
+                problem_row.update(d)
+                #problem_rows.append(problem_row)
+                continue
+            #if ';' in d['meta']['text-producer']:
             #    problem_row = {
             #        'file': os.path.basename(input_path),
-            #        'empty_keys': empty_keys,
             #    }
             #    problem_row.update(d)
             #    problem_rows.append(problem_row)
@@ -364,6 +373,7 @@ def convert_excel2json(
 def merge_single(
     indent:int,
     merge_single_path: str,
+    keep_file: bool = False,
 ):
     single_rows = []
     meta_stat = {}
@@ -371,9 +381,10 @@ def merge_single(
         if len(answers) != 1:
             continue
         answer = answers[0]
-        if 'file' in answer:
-            # デバッグ用フィールドを削除
-            del answer['file']
+        if not keep_file:
+            if 'file' in answer:
+                # デバッグ用フィールドを削除
+                del answer['file']
         single_rows.append(answer)
         #for field in META_MAP:
         for field in answer['meta'].keys():
@@ -406,6 +417,7 @@ def merge_single(
 def merge_multi(
     indent:int,
     merge_multi_path: str,
+    keep_file: bool = False,
 ):
     multi_rows = []
     question_set = set()
@@ -414,9 +426,10 @@ def merge_multi(
         if len(answers) <= 1:
             continue
         for answer in answers:
-            if 'file' in answer:
-                # デバッグ用フィールドを削除
-                del answer['file']
+            if not keep_file:
+                if 'file' in answer:
+                    # デバッグ用フィールドを削除
+                    del answer['file']
             multi_rows.append(answer)
             question_set.add(answer['text'])
             #for field in META_MAP:
@@ -514,6 +527,11 @@ if __name__ == '__main__':
         '--output-stat-json',
         help='Path to export JSON file of statistics',
     )
+    parser.add_argument(
+        '--keep-file',
+        action='store_true',
+        help='Keep file field for debug',
+    )
     #parser.add_argument(
     #    '--output-problem-json',
     #    help='Path to export JSON file of problem data (for debug)',
@@ -533,11 +551,13 @@ if __name__ == '__main__':
         merge_single(
             indent=args.indent,
             merge_single_path=args.merge_single_path,
+            keep_file=args.keep_file,
         )
     if args.merge_multi_path:
         merge_multi(
             indent=args.indent,
             merge_multi_path=args.merge_multi_path,
+            keep_file=args.keep_file,
         )
     if args.export_csv_skipped_alert:
         export_csv_skipped(
@@ -559,7 +579,7 @@ if __name__ == '__main__':
             skipped_non_alert_rows,
             args.export_excel_skipped_non_alert,
         )
-    logger.info('stat: %s', stat)
+    #logger.info('stat: %s', stat)
     if args.output_stat_json:
         with open(args.output_stat_json, 'w', encoding='utf-8') as f:
             f.write(
@@ -571,6 +591,6 @@ if __name__ == '__main__':
                 )
             )
     if problem_rows:
-        with open('./tmp/empty-meta.json', 'w', encoding='utf-8') as f:
+        with open('./tmp/problems.json', 'w', encoding='utf-8') as f:
             f.write( json.dumps( problem_rows, ensure_ascii=False, indent=args.indent) )
         
