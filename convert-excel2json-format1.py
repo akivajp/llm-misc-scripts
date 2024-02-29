@@ -60,6 +60,8 @@ META_MAP = {
         '参考サイト【回答】',
         '参照サイト（回答）',
         '参考サイトURL【回答】',
+        '参照文献、Webサイト',
+        '回答作成時参照文献、Webサイト',
     ],
 }
 
@@ -119,19 +121,19 @@ def get_meta_data(
         if not found:
             raise ValueError(f'No {key}')
     new_output_type = []
-    answer_carefully_type = []
+    alert_type = []
     for value in meta['output-type']:
-        carefully = False
+        alert = False
         if value.find('回答不適切') >= 0:
-            carefully = True
+            alert = True
         elif value.find('要注意') >= 0:
-            carefully = True
-        if carefully:
-            answer_carefully_type.append(value)
+            alert = True
+        if alert:
+            alert_type.append(value)
         else:
             new_output_type.append(value)
     meta['output-type'] = new_output_type
-    meta['answer-carefully-type'] = answer_carefully_type
+    meta['alert-type'] = alert_type
     #for column in row.keys():
     #    if column.find('要注意') >= 0:
     #        logger.debug('column: %s', column)
@@ -140,8 +142,8 @@ def get_meta_data(
 
 map_question_id_to_answers = {}
 map_question_to_id = {}
-skipped_carefully = []
-skipped_not_carefully = []
+skipped_alert = []
+skipped_non_alert = []
 stat = {
     'num_questions': 0,
     'max_num_answers': 0,
@@ -158,7 +160,11 @@ def convert_excel2json(
     '''
     Excelファイルを読み込んでJSONL形式で出力
     '''
-    df = pd.read_excel(input_path)
+    try:
+        df = pd.read_excel(input_path)
+    except Exception as e:
+        logger.error('input_path: %s', input_path)
+        raise e
     rows = []
     if json_lines:
         output_file = os.path.splitext(input_path)[0] + '.jsonl'
@@ -213,13 +219,13 @@ def convert_excel2json(
                         'domain': str.join(';', meta['domain']),
                         'source-to-answer': str.join(';', meta['source-to-answer']),
                         'output-type': str.join(';', meta['output-type']),
-                        'answer-carefully-type': str.join(';', meta['answer-carefully-type']),
+                        'alert-type': str.join(';', meta['alert-type']),
                         'output-reference': meta['output-reference'],
                     }
-                    if len(meta['answer-carefully-type']) > 0:
-                        skipped_carefully.append(skip)
+                    if len(meta['alert-type']) > 0:
+                        skipped_alert.append(skip)
                     else:
-                        skipped_not_carefully.append(skip)
+                        skipped_non_alert.append(skip)
                     continue
                 q_id = map_question_to_id.get(q)
                 if q_id is None:
@@ -276,7 +282,7 @@ def convert_excel2json(
             str_answer_index = str(a_id).zfill(answer_index_length)
             row['ID'] = f'{id_prefix}-{str_question_index}-{str_answer_index}'
             # デバッグ用フィールドを削除
-            del row['file']
+            #del row['file']
             output_rows.append(row)
         if json_lines:
             for i, row in enumerate(
@@ -298,6 +304,9 @@ def merge_single(
         if len(answers) != 1:
             continue
         answer = answers[0]
+        if 'file' in answer:
+            # デバッグ用フィールドを削除
+            del answer['file']
         single_rows.append(answer)
     single_rows.sort(key=lambda x: x['ID'])
     with open(merge_single_path, 'w', encoding='utf-8') as f:
@@ -316,6 +325,9 @@ def merge_multi(
         if len(answers) <= 1:
             continue
         for answer in answers:
+            if 'file' in answer:
+                # デバッグ用フィールドを削除
+                del answer['file']
             multi_rows.append(answer)
     multi_rows.sort(key=lambda x: x['ID'])
     with open(merge_multi_path, 'w', encoding='utf-8') as f:
@@ -372,20 +384,20 @@ if __name__ == '__main__':
         help='Path to merge multi-QA JSON file',
     )
     parser.add_argument(
-        '--export-csv-skipped-carefully',
-        help='Path to export skipped carefully CSV file',
+        '--export-csv-skipped-alert',
+        help='Path to export skipped alert type CSV file',
     )
     parser.add_argument(
-        '--export-csv-skipped-not-carefully',
-        help='Path to export skipped not-carefully CSV file',
+        '--export-csv-skipped-non-alert',
+        help='Path to export skipped non-alert type CSV file',
     )
     parser.add_argument(
-        '--export-excel-skipped-carefully',
-        help='Path to export skipped carefully Excel file',
+        '--export-excel-skipped-alert',
+        help='Path to export skipped alert type Excel file',
     )
     parser.add_argument(
-        '--export-excel-skipped-not-carefully',
-        help='Path to export skipped not-carefully Excel file',
+        '--export-excel-skipped-non-alert',
+        help='Path to export skipped non-alert type Excel file',
     )
     args = parser.parse_args()
     logger.debug('args: %s', args)
@@ -408,25 +420,25 @@ if __name__ == '__main__':
             indent=args.indent,
             merge_multi_path=args.merge_multi_path,
         )
-    if args.export_csv_skipped_carefully:
+    if args.export_csv_skipped_alert:
         export_csv_skipped(
-            skipped_carefully,
-            args.export_csv_skipped_carefully,
+            skipped_alert,
+            args.export_csv_skipped_alert,
         )
-    if args.export_csv_skipped_not_carefully:
+    if args.export_csv_skipped_non_alert:
         export_csv_skipped(
-            skipped_not_carefully,
-            args.export_csv_skipped_not_carefully,
+            skipped_non_alert,
+            args.export_csv_skipped_non_alert,
         )
-    if args.export_excel_skipped_carefully:
+    if args.export_excel_skipped_alert:
         export_excel_skipped(
-            skipped_carefully,
-            args.export_excel_skipped_carefully,
+            skipped_alert,
+            args.export_excel_skipped_alert,
         )
-    if args.export_excel_skipped_not_carefully:
+    if args.export_excel_skipped_non_alert:
         export_excel_skipped(
-            skipped_not_carefully,
-            args.export_excel_skipped_not_carefully,
+            skipped_non_alert,
+            args.export_excel_skipped_non_alert,
         )
     logger.info('stat: %s', stat)
         
