@@ -3,6 +3,7 @@
 import json
 import math
 import os.path
+import re
 import unicodedata
 
 import pandas as pd
@@ -15,7 +16,9 @@ EXCLUDE_FLAGS = [
     '2', '3' , '9', 'R',
 ]
 
-META_SPLIT_DELIM = ';'
+#META_SPLIT_DELIM = ';'
+#META_SPLIT_DELIM = ';'
+META_SPLIT_DELIM = '[;、\n]'
 META_SPLIT_FIELDS = [
     'task',
     'perspective',
@@ -78,6 +81,7 @@ def normalize(value):
 
 def get_meta_data(
     row: pd.Series,
+    skip = False,
 ):
     '''
     メタデータの取得
@@ -97,7 +101,9 @@ def get_meta_data(
                         value = None
                 value = normalize(value)
                 if key in META_SPLIT_FIELDS:
-                    value = value.split(META_SPLIT_DELIM)
+                    old_value = value
+                    #value = value.split(META_SPLIT_DELIM)
+                    value = re.split(META_SPLIT_DELIM, value)
                     #try:
                     #    value = value.split(META_SPLIT_DELIM)
                     #except Exception as e:
@@ -106,6 +112,22 @@ def get_meta_data(
                     #    logger.error('key in META_SPLIT_FIELDS: %s', key in META_SPLIT_FIELDS)
                     #    logger.error('value: %s', value)
                     #    raise e
+                    for elem in value:
+                        if elem == 'に':
+                            raise ValueError(f'Invalid value: {value}')
+                            #raise ValueError(f'Invalid value: {value}, key: {key}')
+                        #if elem:
+                        #    new_values.append(normalize(elem))
+                    value = [elem for elem in value if elem]
+                    #value = new_values
+                    #if not new_values:
+                    #if not value and not skip:
+                    #    #if old_value:
+                    #    raise ValueError(
+                    #        f'Invalid value: {value}, key: {key}, old_value: {old_value}'
+                    #    )
+                    if old_value == '':
+                        value = ['']
                 if key == 'time-dependency':
                     if value == '時間依存':
                         value = True
@@ -134,6 +156,25 @@ def get_meta_data(
             new_output_type.append(value)
     meta['output-type'] = new_output_type
     meta['alert-type'] = alert_type
+    #if ';' in str(meta['text-producer']):
+    #    raise ValueError(f'Invalid text-producer: {meta["text-producer"]}')
+    #if ';' in str(meta['output-producer']):
+    #    if meta['output-producer'] == '12;9':
+    #        pass
+    #    elif meta['output-producer'] == '11;8':
+    #        pass
+    #    else:
+    #        raise ValueError(f'Invalid output-producer: {meta["output-producer"]}')
+    meta['text-producer'] = str(meta['text-producer'])
+    meta['output-producer'] = str(meta['output-producer'])
+    #meta['text-producer'] = int(meta['text-producer'])
+    #meta['output-producer'] = int(meta['output-producer'])
+    #if '' in meta['domain']:
+    #    raise ValueError(f'Invalid domain: {meta["domain"]}')
+    #if '' in meta['output-type']:
+    #    raise ValueError(f'Invalid output-type: {meta["output-type"]}')
+    #if '' in meta['source-to-answer']:
+    #    raise ValueError(f'Invalid source-to-answer: {meta["source-to-answer"]}')
     #for column in row.keys():
     #    if column.find('要注意') >= 0:
     #        logger.debug('column: %s', column)
@@ -142,12 +183,13 @@ def get_meta_data(
 
 map_question_id_to_answers = {}
 map_question_to_id = {}
-skipped_alert = []
-skipped_non_alert = []
+skipped_alert_rows = []
+skipped_non_alert_rows = []
 stat = {
     'num_questions': 0,
     'max_num_answers': 0,
 }
+problem_rows = []
 
 def convert_excel2json(
     input_path,
@@ -197,14 +239,19 @@ def convert_excel2json(
                 a = normalize(a)
                 flg_q = row['flg_Q']
                 flg_a = row['flg_A']
-                meta = get_meta_data(row)
+                #meta = get_meta_data(row, False)
                 if not q or not a:
                     continue
                 #if flg_q in EXCLUDE_FLAGS:
                 #    continue
                 #if flg_a in EXCLUDE_FLAGS:
                 #    continue
+                #meta_skip = get_meta_data(row, skip=True)
+                meta = get_meta_data(row, skip=True)
+                #for key, value in meta_skip.items():
                 if flg_q in EXCLUDE_FLAGS or flg_a in EXCLUDE_FLAGS:
+                    #meta = get_meta_data(row, skip=True)
+                    #meta = meta_skip
                     skip = {
                         'file': os.path.basename(input_path),
                         'text-producer': meta.get('text-producer'),
@@ -223,10 +270,11 @@ def convert_excel2json(
                         'output-reference': meta['output-reference'],
                     }
                     if len(meta['alert-type']) > 0:
-                        skipped_alert.append(skip)
+                        skipped_alert_rows.append(skip)
                     else:
-                        skipped_non_alert.append(skip)
+                        skipped_non_alert_rows.append(skip)
                     continue
+                #meta = get_meta_data(row, skip=False)
                 q_id = map_question_to_id.get(q)
                 if q_id is None:
                     q_id = len(map_question_to_id) + 1
@@ -264,6 +312,24 @@ def convert_excel2json(
                 meta=meta,
                 file=input_path,
             )
+            empty_keys = [
+                #key for key, value in meta.items() if not value
+                key for key, value in meta.items()
+                if value == [] and key not in ['output-reference', 'alert-type']
+            ]
+            #if empty_keys:
+            #    #problem_row = dict(
+            #    #    #file = os.path.basename(input_path),
+            #    #    empty_keys = empty_keys,
+            #    #    **d,
+            #    #)
+            #    problem_row = {
+            #        'file': os.path.basename(input_path),
+            #        'empty_keys': empty_keys,
+            #    }
+            #    problem_row.update(d)
+            #    problem_rows.append(problem_row)
+            #    continue
             rows.append(d)
             answers.append(d)
         min_question_index_length = len(str(stat['num_questions']))
@@ -300,6 +366,7 @@ def merge_single(
     merge_single_path: str,
 ):
     single_rows = []
+    meta_stat = {}
     for q_id, answers in map_question_id_to_answers.items():
         if len(answers) != 1:
             continue
@@ -308,6 +375,26 @@ def merge_single(
             # デバッグ用フィールドを削除
             del answer['file']
         single_rows.append(answer)
+        #for field in META_MAP:
+        for field in answer['meta'].keys():
+            if field == 'output-reference':
+                continue
+            value = answer['meta'][field]
+            field_stat = meta_stat.setdefault(field, {})
+            if isinstance(value, list):
+                for v in value:
+                    field_stat[v] = field_stat.get(v, 0) + 1
+            else:
+                field_stat[value] = field_stat.get(value, 0) + 1
+    stat['num_single_questions'] = len(single_rows)
+    #meta_stat_lists = {}
+    #for field, field_stat in meta_stat.items():
+    #    stat_list = [
+    #        {'key:': key, 'value': value} for key, value in field_stat.items()
+    #    ]
+    #    meta_stat_lists[field] = sorted(stat_list, key=lambda x: x['value'])
+    #stat['single_meta_stat'] = meta_stat_lists
+    stat['single_meta_stat'] = meta_stat
     single_rows.sort(key=lambda x: x['ID'])
     with open(merge_single_path, 'w', encoding='utf-8') as f:
         if merge_single_path.endswith('.jsonl'):
@@ -321,6 +408,8 @@ def merge_multi(
     merge_multi_path: str,
 ):
     multi_rows = []
+    question_set = set()
+    meta_stat = {}
     for q_id, answers in map_question_id_to_answers.items():
         if len(answers) <= 1:
             continue
@@ -329,6 +418,28 @@ def merge_multi(
                 # デバッグ用フィールドを削除
                 del answer['file']
             multi_rows.append(answer)
+            question_set.add(answer['text'])
+            #for field in META_MAP:
+            for field in answer['meta'].keys():
+                if field == 'output-reference':
+                    continue
+                value = answer['meta'][field]
+                field_stat = meta_stat.setdefault(field, {})
+                if isinstance(value, list):
+                    for v in value:
+                        field_stat[v] = field_stat.get(v, 0) + 1
+                else:
+                    field_stat[value] = field_stat.get(value, 0) + 1
+    stat['num_multi_questions'] = len(question_set)
+    stat['num_multi_answers'] = len(multi_rows)
+    #meta_stat_lists = {}
+    #for field, field_stat in meta_stat.items():
+    #    stat_list = [
+    #        {'key:': key, 'value': value} for key, value in field_stat.items()
+    #    ]
+    #    meta_stat_lists[field] = sorted(stat_list, key=lambda x: x['value'])
+    #stat['multi_meta_stat'] = meta_stat_lists
+    stat['multi_meta_stat'] = meta_stat
     multi_rows.sort(key=lambda x: x['ID'])
     with open(merge_multi_path, 'w', encoding='utf-8') as f:
         if merge_multi_path.endswith('.jsonl'):
@@ -399,6 +510,14 @@ if __name__ == '__main__':
         '--export-excel-skipped-non-alert',
         help='Path to export skipped non-alert type Excel file',
     )
+    parser.add_argument(
+        '--output-stat-json',
+        help='Path to export JSON file of statistics',
+    )
+    #parser.add_argument(
+    #    '--output-problem-json',
+    #    help='Path to export JSON file of problem data (for debug)',
+    #)
     args = parser.parse_args()
     logger.debug('args: %s', args)
     for input_file in args.input_files:
@@ -422,23 +541,36 @@ if __name__ == '__main__':
         )
     if args.export_csv_skipped_alert:
         export_csv_skipped(
-            skipped_alert,
+            skipped_alert_rows,
             args.export_csv_skipped_alert,
         )
     if args.export_csv_skipped_non_alert:
         export_csv_skipped(
-            skipped_non_alert,
+            skipped_non_alert_rows,
             args.export_csv_skipped_non_alert,
         )
     if args.export_excel_skipped_alert:
         export_excel_skipped(
-            skipped_alert,
+            skipped_alert_rows,
             args.export_excel_skipped_alert,
         )
     if args.export_excel_skipped_non_alert:
         export_excel_skipped(
-            skipped_non_alert,
+            skipped_non_alert_rows,
             args.export_excel_skipped_non_alert,
         )
     logger.info('stat: %s', stat)
+    if args.output_stat_json:
+        with open(args.output_stat_json, 'w', encoding='utf-8') as f:
+            f.write(
+                json.dumps(
+                    stat,
+                    ensure_ascii=False,
+                    indent=args.indent,
+                    sort_keys=True,
+                )
+            )
+    if problem_rows:
+        with open('./tmp/empty-meta.json', 'w', encoding='utf-8') as f:
+            f.write( json.dumps( problem_rows, ensure_ascii=False, indent=args.indent) )
         
