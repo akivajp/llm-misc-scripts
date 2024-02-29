@@ -18,7 +18,7 @@ EXCLUDE_FLAGS = [
 META_SPLIT_DELIM = ';'
 META_SPLIT_FIELDS = [
     'task',
-    'prospective',
+    'perspective',
     'domain',
     'source-to-answer',
     'output-type',
@@ -29,7 +29,7 @@ META_MAP = {
         '操作',
         '操作\nー\n要約、分類、創作、オープン質問、クローズド質問',
     ],
-    'prospective': [
+    'perspective': [
         '主観',
         '唯一解／客観／主観\nー\n唯一解：唯一の回答\n客観：一般的な回答\n主観：個人の意見',
     ],
@@ -214,7 +214,7 @@ def convert_excel2json(
                         'text': q,
                         'output': a,
                         'task': str.join(';', meta['task']),
-                        'prospective': str.join(';', meta['prospective']),
+                        'perspective': str.join(';', meta['perspective']),
                         'time-dependency': meta['time-dependency'],
                         'domain': str.join(';', meta['domain']),
                         'source-to-answer': str.join(';', meta['source-to-answer']),
