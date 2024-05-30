@@ -74,13 +74,13 @@ def get_meta_data(
             #    value = ['']
             #value = [x for x in value if x]
             value = list(filter(None, value))
-        #if key == 'time-dependency':
-        #    if value == '時間依存':
-        #        value = True
-        #    elif value == '' or value is None:
-        #        value = False
-        #    else:
-        #        raise ValueError(f'Invalid time-dependency: {value}')
+        if key == 'time-dependency':
+            if value == '時間依存':
+                value = True
+            elif value == '' or value is None:
+                value = False
+            else:
+                raise ValueError(f'Invalid time-dependency: {value}')
         if key == 'output-reference':
             if isinstance(value, str):
                 value = value.split('\n')
@@ -158,7 +158,7 @@ def convert_excel2json(
                 text=q,
                 output=a,
                 meta=meta,
-                #file=input_path,
+                file=input_path,
             )
             rows.append(d)
         min_question_index_length = len(str(stat['num_questions']))
