@@ -18,6 +18,8 @@ map_question_id_to_target_answers = {}
 map_id_to_question = {}
 map_id_to_target_question = {}
 
+test_ids = set()
+
 FILL_TARGETS = [
     'task',
     'perspective',
@@ -55,19 +57,29 @@ def load_previous_json(
     logger.debug(f'Loading previous JSON file: {path}')
     rows = load_json_array(path)
     for row in rows:
-        for key in FILL_TARGETS:
-            val = row['meta'][key]
-            if not val:
-                str_id = row['ID']
-                logger.debug(f'id:{str_id}')
-                logger.debug(f'key:{key}')
-                logger.debug(f'val:{val}')
-                raise ValueError(f'{str_id}, Empty value: {key}')
+        #for key in FILL_TARGETS:
+        #    val = row['meta'][key]
+        #    if not val:
+        #        str_id = row['ID']
+        #        logger.debug(f'id:{str_id}')
+        #        logger.debug(f'key:{key}')
+        #        logger.debug(f'val:{val}')
+        #        raise ValueError(f'{str_id}, Empty value: {key}')
+
+        test_id = row.get('question-ID')
+        if test_id is None:
+            test_id = row.get('Question-ID')
+        if test_id is not None:
+            if test_id in test_ids:
+                raise ValueError(f'Duplicate test ID: {test_id}')
+            test_ids.add(test_id)
+
         id_fields = row['ID'].split('-')
         question_id = int(id_fields[-2])
         answer_id = int(id_fields[-1])
         question = row['text']
         answer = row['output']
+
         if question not in map_question_to_id:
             map_question_to_id[question] = question_id
             map_id_to_question[question_id] = question
@@ -134,6 +146,16 @@ def merge_json_files(
                             break
                 if error:
                     break
+
+            test_id = row.get('question-ID')
+            if test_id is None:
+                test_id = row.get('Question-ID')
+            if test_id is not None:
+                if test_id in test_ids:
+                    raise ValueError(f'Duplicate test ID: {test_id}')
+                #else:
+                #    logger.debug('OK test ID: %s', test_id)
+                test_ids.add(test_id)
 
             question = row['text']
             #answers = []
