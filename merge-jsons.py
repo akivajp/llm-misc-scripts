@@ -405,6 +405,46 @@ def output_json(
     else:
         raise ValueError(f'Invalid path: {json.dumps(output_path)}')
     
+def output_questions(
+    output_path: str,
+    indent=2,
+    prefix = '',
+    question_index_length=7,
+    answer_index_length=3,
+):
+    rows = []
+    q_ids = sorted(map_question_id_to_answers.keys())
+    for question_id in q_ids:
+        question = map_id_to_question[question_id]
+        answers = map_question_id_to_answers[question_id]
+        answer0 = answers[0]
+        id_fields = answer0['ID'].split('-')
+        question_id, answer_id = int(id_fields[-2]), int(id_fields[-1])
+        new_question_id = f'{question_id:0{question_index_length}d}'
+        new_answer_id = f'{answer_id:0{answer_index_length}d}'
+        new_id = f'{new_question_id}-{new_answer_id}'
+        if prefix:
+            if prefix.endswith('-'):
+                new_id = f'{prefix}{new_id}'
+            else:
+                new_id = f'{prefix}-{new_id}'
+        row = {
+            'ID': new_id,
+            'text': question,
+        }
+        rows.append(row)
+    if output_path.endswith('.json'):
+        with open(output_path, 'w', encoding='utf-8') as f:
+            logger.debug(f'Exporting: {output_path}')
+            json.dump(rows, f, indent=indent, ensure_ascii=False)
+    elif output_path.endswith('.jsonl'):
+        with open(output_path, 'w', encoding='utf-8') as f:
+            logger.debug(f'Exporting: {output_path}')
+            for row in rows:
+                f.write(json.dumps(row, ensure_ascii=False) + '\n')
+    else:
+        raise ValueError(f'Invalid path: {json.dumps(output_path)}')
+    
 def output_stat_json(
     stat,
     output_stat_path: str,
@@ -482,7 +522,8 @@ if __name__ == '__main__':
         help='Paths to fixed JSON files to load'
     )
     parser.add_argument(
-        '--output', type=str, required=True,
+        '--output', type=str,
+        #required=True,
         help='Output path for the merged JSON'
     )
 
@@ -505,6 +546,10 @@ if __name__ == '__main__':
     parser.add_argument(
         '--merge-single-path', '-S',
         help='Path to merge single QA JSON file',
+    )
+    parser.add_argument(
+        '--output-questions',
+        help='Path to export JSON file of questions',
     )
     args = parser.parse_args()
     logger.debug('args: %s', args)
@@ -530,9 +575,18 @@ if __name__ == '__main__':
             allow_duplicate_question=False,
             check_loaded=False,
         )
-    output_json(rows, args.output, args.indent, sort=True)
+    if args.output:
+        output_json(rows, args.output, args.indent, sort=True)
     if args.merge_single_path:
         merge_single(args.merge_single_path, args.indent)
+    if args.output_questions:
+        output_questions(
+            args.output_questions,
+            args.indent,
+            args.prefix,
+            args.question_index_length,
+            args.answer_index_length,
+        )
     output_stat_json(stat, args.output_stat_json, args.indent)
     str_stat_json = json.dumps(stat, indent=args.indent, ensure_ascii=False)
     logger.debug(f'Stat:\n{str_stat_json}')
