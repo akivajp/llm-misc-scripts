@@ -20,6 +20,7 @@ META_SPLIT_FIELDS = [
     'source-to-answer',
     'output-type',
     'alert-type',
+    'point-allocation',
 ]
 
 META_FIELDS = [
@@ -33,6 +34,7 @@ META_FIELDS = [
     #'output-producer',
     #'output-reference',
     'alert-type',
+    'point-allocation',
 ]
 
 def normalize(value):
@@ -68,6 +70,8 @@ def get_meta_data(
             #old_value = value
             #if value:
             #    value = re.split(META_SPLIT_DELIM, value)
+            if type(value) == int:
+                value = str(value)
             value = re.split(META_SPLIT_DELIM, value)
             #else:
             #    value = []
@@ -75,6 +79,9 @@ def get_meta_data(
             #    value = ['']
             #value = [x for x in value if x]
             value = list(filter(None, value))
+            #if key == 'point-allocation':
+            #    if len(value) >= 2:
+            #        logger.debug('point-allocation: %s', value)
         if key == 'time-dependency':
             if value == '時間依存':
                 value = True
@@ -253,7 +260,6 @@ def merge_single(
     single_rows = []
     meta_stat = {}
     for q_id, answers in map_question_id_to_answers.items():
-        logger.debug('# answers: %s', answers)
         if len(answers) != 1:
             continue
         answer = answers[0]
