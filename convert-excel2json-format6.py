@@ -145,8 +145,12 @@ def convert_excel2json(
                 q = row['text']
                 q = normalize(q)
                 a = row['output']
+                new_a = None
                 if str(a) == '2024-03-11 00:00:00':
                     new_a = '3月11日'
+                if str(a) == '03:01:00':
+                    new_a = '3:1'
+                if new_a is not None:
                     logger.warn('output converted from "%s" to "%s"', a, new_a)
                     a = new_a
                 a = normalize(a)
@@ -245,7 +249,8 @@ def convert_excel2json(
                     f_output.write(json.dumps(row, ensure_ascii=False) + '\n')
                 except Exception as e:
                     #logger.error('row: %s', row)
-                    logger.error('row.output: %s', str(row['output']))
+                    logger.error('type(row.output): %s', type(row['output']))
+                    logger.error('row.output: "%s"', str(row['output']))
                     raise e
         else:
             f_output.write(
