@@ -117,6 +117,7 @@ def merge_json_files(
     answer_index_length=3,
     allow_duplicate_question=True,
     check_loaded=False,
+    fix_id=False,
 ):
     rows = []
     #if check_loaded:
@@ -360,6 +361,10 @@ def merge_json_files(
                     row['ID'] = f'{prefix}-{str_question_id}-{str_answer_id}'
             else:
                 row['ID'] = f'{str_question_id}-{str_answer_id}'
+            if fix_id:
+                if not prefix:
+                    raise ValueError('Prefix is required to fix ID')
+                row['ID'] = prefix
             if 'file' in row:
                 del row['file']
             rows.append(row)
@@ -514,6 +519,11 @@ if __name__ == '__main__':
         '--prefix', type=str, default='',
         help='Prefix to add to IDs in the merged JSON')
     parser.add_argument(
+        '--fix-id',
+        action='store_true',
+        help='Fix ID',
+    )
+    parser.add_argument(
         '--previous-paths', type=str, nargs='+',
         help='Paths to previous JSON files to load'
     )
@@ -574,6 +584,7 @@ if __name__ == '__main__':
             args.answer_index_length,
             allow_duplicate_question=False,
             check_loaded=False,
+            fix_id=args.fix_id,
         )
     if args.output:
         output_json(rows, args.output, args.indent, sort=True)

@@ -115,6 +115,7 @@ def convert_excel2json(
     answer_index_length,
     json_lines,
     indent: int,
+    fix_id= False,
 ):
     '''
     Excelファイルを読み込んでJSONL形式で出力
@@ -237,7 +238,10 @@ def convert_excel2json(
             a_id = row.pop('a_id')
             str_question_index = str(q_id).zfill(question_index_length)
             str_answer_index = str(a_id).zfill(answer_index_length)
-            row['ID'] = f'{id_prefix}-{str_question_index}-{str_answer_index}'
+            if fix_id:
+                row['ID'] = id_prefix
+            else:
+                row['ID'] = f'{id_prefix}-{str_question_index}-{str_answer_index}'
             # デバッグ用フィールドを削除
             #del row['file']
             output_rows.append(row)
@@ -354,6 +358,11 @@ if __name__ == '__main__':
     parser.add_argument('input_files', nargs='+', help='Input Excel files')
     parser.add_argument('--id-prefix', '-P', required=True, help='ID prefix')
     parser.add_argument(
+        '--fix-id',
+        action='store_true',
+        help='Fix ID'
+    )
+    parser.add_argument(
         '--json-lines', '--lines', '-L',
         action='store_true',
         help='Output JSON Lines file'
@@ -397,6 +406,7 @@ if __name__ == '__main__':
             answer_index_length=args.answer_index_length,
             json_lines=args.json_lines,
             indent=args.indent,
+            fix_id=args.fix_id,
         )
     if args.merge_single_path:
         merge_single(
