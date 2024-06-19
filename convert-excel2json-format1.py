@@ -42,10 +42,12 @@ META_MAP = {
     'task': [
         '操作',
         '操作\nー\n要約、分類、創作、オープン質問、クローズド質問',
+        '操作(task)',
     ],
     'perspective': [
         '主観',
         '唯一解／客観／主観\nー\n唯一解：唯一の回答\n客観：一般的な回答\n主観：個人の意見',
+        '主観(perspective)',
     ],
     'time-dependency': [
         '時間依存',
@@ -54,14 +56,17 @@ META_MAP = {
     'domain': [
         '分野',
         '分野\nー\n数学、歴史、グルメ（学校の科目、学問、新聞分類程度）',
+        '分野(domain)',
     ],
     'source-to-answer': [
         '対象',
         '能力',
         '対象\nー\n問われている対象知識、数学、創作',
+        '能力(source to ansewer)',
     ],
     'output-type': [
         '回答タイプ',
+        '回答\nタイプ',
         '回答タイプ\nー\n本質的質問の形式的タイプ。単語、数字、リスト、文章',
     ],
     'text-producer': [
@@ -76,6 +81,7 @@ META_MAP = {
         '参考サイトURL【回答】',
         '参照文献、Webサイト',
         '回答作成時参照文献、Webサイト',
+        '回答作成時参照文献、\nWebサイト',
     ],
 }
 
@@ -93,11 +99,13 @@ def normalize(value):
 def get_meta_data(
     row: pd.Series,
     skip = False,
+    ignorable_fields: list|None = None,
 ):
     '''
     メタデータの取得
     '''
     meta = {}
+    ignorable_fields = ignorable_fields or []
     for key, row_keys in META_MAP.items():
         found = False
         for row_key in row_keys:
@@ -153,7 +161,7 @@ def get_meta_data(
                 meta[key] = value
                 found = True
                 break
-        if not found:
+        if not found and key not in ignorable_fields:
             raise ValueError(f'No {key}')
     new_output_type = []
     alert_type = []
@@ -169,14 +177,19 @@ def get_meta_data(
             new_output_type.append(value)
     meta['output-type'] = new_output_type
     meta['alert-type'] = alert_type
-    if ';' in str(meta['text-producer']):
-        raise ValueError(f'Invalid text-producer: {meta["text-producer"]}')
-    if ';' in str(meta['output-producer']):
-        raise ValueError(f'Invalid output-producer: {meta["output-producer"]}')
+    if ';' in str(meta.get('text-producer')):
+        raise ValueError(f'Invalid text-producer: {meta.get("text-producer")}')
+    if ';' in str(meta.get('output-producer')):
+        raise ValueError(f'Invalid output-producer: {meta.get("output-producer")}')
     #meta['text-producer'] = str(meta['text-producer'])
     #meta['output-producer'] = str(meta['output-producer'])
-    meta['text-producer'] = int(meta['text-producer'])
-    meta['output-producer'] = int(meta['output-producer'])
+    if meta.get('text-producer') is not None:
+        meta['text-producer'] = int(meta['text-producer'])
+    if meta.get('output-producer') is not None:
+        meta['output-producer'] = int(meta['output-producer'])
+    if 'output-producer' in ignorable_fields:
+        if meta.get('output-producer', 0) is None:
+            del meta['output-producer']
     #if '' in meta['domain']:
     #    raise ValueError(f'Invalid domain: {meta["domain"]}')
     #if '' in meta['output-type']:
@@ -206,6 +219,10 @@ def convert_excel2json(
     answer_index_length,
     json_lines,
     indent: int,
+    ignore_duplicated_answers: bool = False,
+    ignore_flags: bool = False,
+    ignorable_fields: list|None = None,
+    allow_empty_answer: bool = False,
 ):
     '''
     Excelファイルを読み込んでJSONL形式で出力
@@ -245,43 +262,43 @@ def convert_excel2json(
                 else:
                     raise ValueError('No 回答 or 作成した回答')
                 a = normalize(a)
-                flg_q = row['flg_Q']
-                flg_a = row['flg_A']
                 #meta = get_meta_data(row, False)
-                if not q or not a:
-                    continue
-                #if flg_q in EXCLUDE_FLAGS:
+                #if not q or not a:
+                #    raise ValueError('Empty question or answer')
                 #    continue
-                #if flg_a in EXCLUDE_FLAGS:
-                #    continue
-                #meta_skip = get_meta_data(row, skip=True)
-                meta = get_meta_data(row, skip=True)
-                #for key, value in meta_skip.items():
-                if flg_q in EXCLUDE_FLAGS or flg_a in EXCLUDE_FLAGS:
-                    #meta = get_meta_data(row, skip=True)
-                    #meta = meta_skip
-                    skip = {
-                        'file': os.path.basename(input_path),
-                        'text-producer': meta.get('text-producer'),
-                        'output-producer': meta.get('output-producer'),
-                        'flg_q': flg_q,
-                        'flg_a': flg_a,
-                        'text': q,
-                        'output': a,
-                        'task': str.join(';', meta['task']),
-                        'perspective': str.join(';', meta['perspective']),
-                        'time-dependency': meta['time-dependency'],
-                        'domain': str.join(';', meta['domain']),
-                        'source-to-answer': str.join(';', meta['source-to-answer']),
-                        'output-type': str.join(';', meta['output-type']),
-                        'alert-type': str.join(';', meta['alert-type']),
-                        'output-reference': meta['output-reference'],
-                    }
-                    if len(meta['alert-type']) > 0:
-                        skipped_alert_rows.append(skip)
-                    else:
-                        skipped_non_alert_rows.append(skip)
-                    continue
+                if not q:
+                    raise ValueError('Empty question')
+                if not allow_empty_answer:
+                    if not a:
+                        raise ValueError('Empty answer')
+                #meta = get_meta_data(row, skip=True)
+                meta = get_meta_data(row, skip=True, ignorable_fields=ignorable_fields)
+                if not ignore_flags:
+                    flg_q = row['flg_Q']
+                    flg_a = row['flg_A']
+                    if flg_q in EXCLUDE_FLAGS or flg_a in EXCLUDE_FLAGS:
+                        skip = {
+                            'file': os.path.basename(input_path),
+                            'text-producer': meta.get('text-producer'),
+                            'output-producer': meta.get('output-producer'),
+                            'flg_q': flg_q,
+                            'flg_a': flg_a,
+                            'text': q,
+                            'output': a,
+                            'task': str.join(';', meta['task']),
+                            'perspective': str.join(';', meta['perspective']),
+                            'time-dependency': meta['time-dependency'],
+                            'domain': str.join(';', meta['domain']),
+                            'source-to-answer': str.join(';', meta['source-to-answer']),
+                            'output-type': str.join(';', meta['output-type']),
+                            'alert-type': str.join(';', meta['alert-type']),
+                            'output-reference': meta['output-reference'],
+                        }
+                        if len(meta['alert-type']) > 0:
+                            skipped_alert_rows.append(skip)
+                        else:
+                            skipped_non_alert_rows.append(skip)
+                        continue
                 #meta = get_meta_data(row, skip=False)
                 q_id = map_question_to_id.get(q)
                 if q_id is None:
@@ -302,6 +319,9 @@ def convert_excel2json(
                     if a_id > max_num_answers:
                         stat['max_num_answers'] = a_id
                 else:
+                    if ignore_duplicated_answers:
+                        logger.debug('Duplicated Answer: %s', answers[a_id])
+                        continue
                     raise ValueError(f'Duplicated Answer: {answers[a_id]}')
                 ref = meta.get('output-reference')
                 if isinstance(ref, str):
@@ -533,6 +553,26 @@ if __name__ == '__main__':
         action='store_true',
         help='Keep file field for debug',
     )
+    parser.add_argument(
+        '--ignore-duplicated-answers',
+        action='store_true',
+        help='Ignore duplicated answers',
+    )
+    parser.add_argument(
+        '--ignore-flags',
+        action='store_true',
+        help='Ignore flags',
+    )
+    parser.add_argument(
+        '--ignorable-fields',
+        nargs='+',
+        help='Ignorable fields',
+    )
+    parser.add_argument(
+        '--allow-empty-answer',
+        action='store_true',
+        help='Allow empty answer',
+    )
     #parser.add_argument(
     #    '--output-problem-json',
     #    help='Path to export JSON file of problem data (for debug)',
@@ -547,6 +587,10 @@ if __name__ == '__main__':
             answer_index_length=args.answer_index_length,
             json_lines=args.json_lines,
             indent=args.indent,
+            ignore_duplicated_answers=args.ignore_duplicated_answers,
+            ignore_flags=args.ignore_flags,
+            ignorable_fields=args.ignorable_fields,
+            allow_empty_answer=args.allow_empty_answer,
         )
     if args.merge_single_path:
         merge_single(
