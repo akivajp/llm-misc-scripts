@@ -79,6 +79,8 @@ def get_meta_data(
                 value = True
             elif value == '' or value is None:
                 value = False
+            elif type(value) == bool:
+                pass
             else:
                 raise ValueError(f'Invalid time-dependency: {value}')
         if key == 'output-reference':
