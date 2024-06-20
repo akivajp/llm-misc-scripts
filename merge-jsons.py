@@ -18,6 +18,8 @@ map_question_id_to_target_answers = {}
 map_id_to_question = {}
 map_id_to_target_question = {}
 
+duplicated_question_rows = []
+
 test_ids = set()
 
 FILL_TARGETS = [
@@ -115,7 +117,9 @@ def merge_json_files(
     prefix='',
     question_index_length=7,
     answer_index_length=3,
-    allow_duplicate_question=True,
+    #allow_duplicate_question=True,
+    #allow_duplicate_question: str ='allow',
+    check_duplicate_question_mode: str ='allow',
     check_loaded=False,
     fix_id=False,
 ):
@@ -211,8 +215,18 @@ def merge_json_files(
                     #map_question_id_to_answers[question_id] = []
                     map_question_id_to_answers[question_id] = answers
             else:
-                if not allow_duplicate_question:
+                prev_id = map_question_to_id[question]
+                prev_row = map_question_id_to_answers[prev_id][0]
+                #if not allow_duplicate_question:
+                if check_duplicate_question_mode == 'error':
+                    #logger.debug('prev_row: %s', prev_row)
+                    #logger.debug('row: %s', row)
                     raise ValueError(f'Duplicate question: {question}')
+                elif check_duplicate_question_mode == 'allow':
+                    duplicated_question_rows.append(prev_row)
+                    duplicated_question_rows.append(dict(**row))
+                elif check_duplicate_question_mode == 'skip':
+                    continue
                 question_id = map_question_to_id[question]
                 #answers = map_question_id_to_answers[question_id]
                 answers = map_question_id_to_answers[question_id]
@@ -505,6 +519,45 @@ def merge_single(
         else:
             f.write(json.dumps(single_rows, ensure_ascii=False, indent=indent))
 
+def merge_multi(
+    merge_multi_path: str,
+    indent:int,
+):
+    multi_rows = []
+    meta_stat = {}
+    q_ids = sorted(map_question_id_to_answers.keys())
+    for q_id in q_ids:
+        answers = map_question_id_to_answers[q_id]
+        if len(answers) <= 1:
+            continue
+        for answer in answers:
+            multi_rows.append(answer)
+            for field in answer['meta'].keys():
+                if field == 'output-reference':
+                    continue
+                value = answer['meta'][field]
+                #if not value:
+                #    logger.debug(f'answer: {answer}')
+                #    logger.debug(f'Empty value: {field}')
+                field_stat = meta_stat.setdefault(field, {})
+                if isinstance(value, list):
+                    for v in value:
+                        #if not v:
+                        #    logger.debug(f'answer: {answer}')
+                        #    logger.debug(f'Empty value: {field}')
+                        field_stat[v] = field_stat.get(v, 0) + 1
+                else:
+                    field_stat[value] = field_stat.get(value, 0) + 1
+    stat['num_multi_questions'] = len(multi_rows)
+    stat['multi_meta_stat'] = meta_stat
+    #multi_rows.sort(key=lambda x: x['ID'])
+    with open(merge_multi_path, 'w', encoding='utf-8') as f:
+        if merge_multi_path.endswith('.jsonl'):
+            for row in multi_rows:
+                f.write(json.dumps(row, ensure_ascii=False) + '\n')
+        else:
+            f.write(json.dumps(multi_rows, ensure_ascii=False, indent=indent))
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Merge JSON files')
     #parser.add_argument(
@@ -558,8 +611,21 @@ if __name__ == '__main__':
         help='Path to merge single QA JSON file',
     )
     parser.add_argument(
+        '--merge-multi-path', '-M',
+        help='Path to merge multi QA JSON file',
+    )
+    parser.add_argument(
         '--output-questions',
         help='Path to export JSON file of questions',
+    )
+    parser.add_argument(
+        '--output-duplicated-questions',
+        help='Path to export JSON file of duplicated questions',
+    )
+    parser.add_argument(
+        '--skip-duplicated-questions',
+        action='store_true',
+        help='Skip duplicated questions',
     )
     args = parser.parse_args()
     logger.debug('args: %s', args)
@@ -576,13 +642,22 @@ if __name__ == '__main__':
             check_loaded=True,
         )
     if args.new_paths:
+        #allow_duplicated_question = False
+        check_duplicated_question_mode = 'error'
+        if args.output_duplicated_questions:
+            #allow_duplicated_question = True
+            check_duplicated_question_mode = 'allow'
+        if args.skip_duplicated_questions:
+            check_duplicated_question_mode = 'skip'
         rows += merge_json_files(
             #args.json_paths,
             args.new_paths,
             args.prefix,
             args.question_index_length,
             args.answer_index_length,
-            allow_duplicate_question=False,
+            #allow_duplicate_question=False,
+            #allow_duplicate_question=allow_duplicated_question,
+            check_duplicate_question_mode=check_duplicated_question_mode,
             check_loaded=False,
             fix_id=args.fix_id,
         )
@@ -590,6 +665,8 @@ if __name__ == '__main__':
         output_json(rows, args.output, args.indent, sort=True)
     if args.merge_single_path:
         merge_single(args.merge_single_path, args.indent)
+    if args.merge_multi_path:
+        merge_multi(args.merge_multi_path, args.indent)
     if args.output_questions:
         output_questions(
             args.output_questions,
@@ -598,6 +675,8 @@ if __name__ == '__main__':
             args.question_index_length,
             args.answer_index_length,
         )
+    if args.output_duplicated_questions:
+        output_json(duplicated_question_rows, args.output_duplicated_questions, args.indent)
     output_stat_json(stat, args.output_stat_json, args.indent)
     str_stat_json = json.dumps(stat, indent=args.indent, ensure_ascii=False)
     logger.debug(f'Stat:\n{str_stat_json}')
