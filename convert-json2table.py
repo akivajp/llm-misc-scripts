@@ -5,6 +5,18 @@ import json
 import pandas as pd
 from logzero import logger
 
+def set_value(d, j, key, delimiter=None):
+    if key not in j:
+        return
+    value = j[key]
+    if value is None:
+        d[key] = None
+    if isinstance(value, list):
+        if delimiter is not None:
+            d[key] = delimiter.join(value)
+    else:
+        d[key] = value
+
 def export_to_table(
     input_json_paths: list[str],
     export_path,
@@ -28,21 +40,36 @@ def export_to_table(
             raise ValueError(f'Invalid input_json_path: {input_json_path}')
         for row in rows:
             meta = row['meta']
-            flat_row = {
-                'ID': row['ID'],
-                'text-producer': meta.get('text-producer'),
-                'output-producer': meta.get('output-producer'),
-                'text': row['text'],
-                'output': row['output'],
-                'task': str.join(';', meta['task']),
-                'perspective': str.join(';', meta['perspective']),
-                'time-dependency': meta['time-dependency'],
-                'domain': str.join(';', meta['domain']),
-                'source-to-answer': str.join(';', meta['source-to-answer']),
-                'output-type': str.join(';', meta['output-type']),
-                'alert-type': str.join(';', meta['alert-type']),
-                'output-reference': str.join('\n', meta['output-reference']),
-            }
+            flat_row = {}
+            #flat_row = {
+            #    'ID': row['ID'],
+            #    'text-producer': meta.get('text-producer'),
+            #    'output-producer': meta.get('output-producer'),
+            #    'text': row['text'],
+            #    'output': row['output'],
+            #    'task': str.join(';', meta['task']),
+            #    'perspective': str.join(';', meta['perspective']),
+            #    'time-dependency': meta['time-dependency'],
+            #    'domain': str.join(';', meta['domain']),
+            #    'source-to-answer': str.join(';', meta['source-to-answer']),
+            #    'output-type': str.join(';', meta['output-type']),
+            #    'alert-type': str.join(';', meta['alert-type']),
+            #    #'output-reference': str.join('\n', meta['output-reference']),
+            #    'output-reference': output_reference,
+            #}
+            set_value(flat_row, row, 'ID')
+            set_value(flat_row, meta, 'text-producer')
+            set_value(flat_row, meta, 'output-producer')
+            set_value(flat_row, row, 'text')
+            set_value(flat_row, row, 'output')
+            set_value(flat_row, meta, 'task', delimiter=';')
+            set_value(flat_row, meta, 'perspective', delimiter=';')
+            set_value(flat_row, meta, 'time-dependency')
+            set_value(flat_row, meta, 'domain', delimiter=';')
+            set_value(flat_row, meta, 'source-to-answer', delimiter=';')
+            set_value(flat_row, meta, 'output-type', delimiter=';')
+            set_value(flat_row, meta, 'alert-type', delimiter=';')
+            set_value(flat_row, meta, 'output-reference', delimiter='\n')
             all_rows.append(flat_row)
     df = pd.DataFrame(all_rows)
     logger.debug('df: %s', df)
