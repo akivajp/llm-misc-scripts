@@ -13,6 +13,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_json_path', type=str)
     parser.add_argument('output_json_path', type=str)
+    parser.add_argument('--id-prefix', '-P', required=True, help='ID prefix')
     args = parser.parse_args()
 
     with open(args.input_json_path, 'r', encoding='utf-8') as f:
@@ -22,6 +23,13 @@ if __name__ == '__main__':
     for i, row in enumerate(tqdm(data)):
         pass
         #print(row)
+        # NOTE: ID の変更
+        str_id = row['ID']
+        id_fields = str_id.split('-')
+        question_id, answer_id = id_fields[-2:]
+        new_id = f'{args.id_prefix}-{question_id}-{answer_id}'
+        row['ID'] = new_id
+        # NOTE: output-reference のチェック、全角文字に対する処理
         ref = row['meta']['output-reference']
         if ref:
             #print(ref)
