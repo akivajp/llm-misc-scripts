@@ -73,9 +73,11 @@ def main(
         if key not in json1_dict:
             print(f'Key {key} is not in {input_json_path1}')
             #sys.exit(1)
+            continue
         if key not in json2_dict:
             print(f'Key {key} is not in {input_json_path2}')
             #sys.exit(1)
+            continue
         #diff_dicts(json1_dict[key], json2_dict[key])
         diff_dicts(json1_dict[key], json2_dict[key], prefix=f'{key}.')
 
