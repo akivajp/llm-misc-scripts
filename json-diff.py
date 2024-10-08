@@ -5,6 +5,10 @@ import argparse
 import json
 import sys
 
+from difflib import context_diff
+from difflib import unified_diff
+from difflib import ndiff
+
 DEFAULT_AXIS_FIELD = 'ID'
 
 def diff_dicts(dict1, dict2, prefix='', depth=0):
@@ -32,17 +36,35 @@ def diff_dicts(dict1, dict2, prefix='', depth=0):
             print(f'{key_prefix} is changed')
             #print(f'{indent}dict1: {dict1[key]}')
             #print(f'{indent}dict2: {dict2[key]}')
-            print(f'{indent}old: {dict1[key]}')
-            print(f'{indent}new: {dict2[key]}')
+            #print(f'{indent}old: {dict1[key]}')
+            #print(f'{indent}new: {dict2[key]}')
             #sys.exit(1)
+            #sys.stdout.writelines(unified_diff(dict1[key], dict2[key]))
+            #print(str.join('', ndiff(dict1[key], dict2[key])))
+            #print(str.join('', ndiff(str(dict1[key]).split('\n'), str(dict2[key]).split('\n'))))
+            #sys.stdout.writelines(ndiff(str(dict1[key]).split('\n'), str(dict2[key]).split('\n')))
+            #print(str.join('\n', ndiff(str(dict1[key]).split('\n'), str(dict2[key]).split('\n'))))
+            print(str.join('\n', context_diff(str(dict1[key]).split('\n'), str(dict2[key]).split('\n'))))
+
+def convert_qa_ids(rows):
+    for  row in rows:
+        str_id = row['ID']
+        id_fields = str_id.split('-')
+        question_id, answer_id = id_fields[-2:]
+        new_id = f'{question_id}-{answer_id}'
+        row['ID'] = new_id
 
 def main(
     input_json_path1: str,
     input_json_path2: str,
     axis_field: str,
+    do_convert_qa_ids: bool,
 ):
     json1 = json.load(open(input_json_path1, 'r', encoding='utf-8'))
     json2 = json.load(open(input_json_path2, 'r', encoding='utf-8'))
+    if do_convert_qa_ids:
+        convert_qa_ids(json1)
+        convert_qa_ids(json2)
     json1_dict = {row[axis_field]: row for row in json1}
     json2_dict = {row[axis_field]: row for row in json2}
     #keys = set(json1_dict.keys()) | set(json2_dict.keys())
@@ -67,9 +89,15 @@ if __name__ == '__main__':
         default=DEFAULT_AXIS_FIELD,
         help='Axis field',
     )
+    parser.add_argument(
+        '--convert-qa-ids', '-C',
+        action='store_true',
+        help='Convert QA IDs',
+    )
     args = parser.parse_args()
     main(
         args.input_json_path1,
         args.input_json_path2,
         args.axis_field,
+        args.convert_qa_ids,
     )
