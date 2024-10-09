@@ -35,8 +35,10 @@ def convert_xlsx2json_mapped(
         mapping.append((source, target))
     logger.debug('mapping: %s', mapping)
     for input_xlsx_path in input_xlsx_paths:
-        df = pd.read_excel(input_xlsx_path)
+        #df = pd.read_excel(input_xlsx_path)
+        df = pd.read_excel(input_xlsx_path, header=None)
         #logger.debug('df: %s', df)
+        #logger.debug('df.keys: %s', df.keys())
         data = []
         for i, row in tqdm(
             df.iterrows(),
