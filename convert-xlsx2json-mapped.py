@@ -14,8 +14,9 @@ def convert_xlsx2json_mapped(
     #input_xlsx_path: str,
     input_xlsx_paths: list[str],
     #output_json_path: str,
-    json_lines: bool,
     str_mapping: str,
+    json_lines: bool,
+    no_header: bool,
 ):
     #with open(mapping_json_path, 'r', encoding='utf-8') as f:
     #    mapping = json.load(f)
@@ -36,7 +37,10 @@ def convert_xlsx2json_mapped(
     logger.debug('mapping: %s', mapping)
     for input_xlsx_path in input_xlsx_paths:
         #df = pd.read_excel(input_xlsx_path)
-        df = pd.read_excel(input_xlsx_path, header=None)
+        if no_header:
+            df = pd.read_excel(input_xlsx_path, header=None)
+        else:
+            df = pd.read_excel(input_xlsx_path)
         #logger.debug('df: %s', df)
         #logger.debug('df.keys: %s', df.keys())
         data = []
@@ -50,7 +54,14 @@ def convert_xlsx2json_mapped(
             #for key, value in mapping:
             #    new_row[key] = row[value]
             for source, target in mapping:
-                new_row[target] = row[source]
+                source_int = source
+                if type(source) == str:
+                    if source_int.isdigit():
+                        source_int = int(source)
+                if source in row:
+                    new_row[target] = row[source]
+                else:
+                    new_row[target] = row[source_int]
             data.append(new_row)
         base_output_json_path = os.path.splitext(input_xlsx_path)[0]
         if json_lines:
@@ -76,7 +87,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--json-lines', '--lines', '-L',
         action='store_true',
-        help='Ouput as JSON Lines',
+        help='Output as JSON Lines',
     )
     #parser.add_argument('output_json_path', type=str)
     parser.add_argument(
@@ -85,12 +96,17 @@ if __name__ == '__main__':
         required=True,
         help='Comma separated mapping: source1:target1,source2:target2,... or target1,target2,... (example: ID,text,output))',
     )
+    parser.add_argument(
+        '--no-header',
+        action='store_true',
+        help='Skip header',
+    )
     args = parser.parse_args()
     logger.debug('args: %s', args)
 
     convert_xlsx2json_mapped(
         args.input_xlsx_paths,
-        #args.output_json_path,
+        args.mapping,
         args.json_lines,
-        args.mapping
+        args.no_header,
     )
