@@ -45,6 +45,7 @@ stat = {
     'max_target_answers': 0,
     'num_modified_questions': 0,
     'num_modified_answers': 0,
+    'num_deleted_records': 0,
 }
 
 #new_question_ids = []
@@ -130,27 +131,29 @@ def merge_json_files(
         logger.debug(f'Processing: {json_path}')
         file_rows = load_json_array(json_path)
         for i, row in enumerate(file_rows):
-            for key in FILL_TARGETS:
-                val = row['meta'][key]
-                #if not val:
-                #    str_id = row['ID']
-                #    logger.debug(f'id:{str_id}')
-                #    logger.debug(f'key:{key}')
-                #    logger.debug(f'val:{val}')
-                #    raise ValueError(f'{str_id}, Empty value: {key}')
-                error = False
-                if isinstance(val, list):
-                    for v in val:
-                        if error:
-                            break
-                        if not v:
-                            logger.debug(f'row: {row}')
-                            logger.debug(f'line:{i}, id:${row["ID"]}, key:{key}, val:{v}')
-                            #row['meta'][key].append(v)
-                            error = True
-                            break
-                if error:
-                    break
+            meta = row.get('meta')
+            if meta:
+                for key in FILL_TARGETS:
+                    val = meta[key]
+                    #if not val:
+                    #    str_id = row['ID']
+                    #    logger.debug(f'id:{str_id}')
+                    #    logger.debug(f'key:{key}')
+                    #    logger.debug(f'val:{val}')
+                    #    raise ValueError(f'{str_id}, Empty value: {key}')
+                    error = False
+                    if isinstance(val, list):
+                        for v in val:
+                            if error:
+                                break
+                            if not v:
+                                logger.debug(f'row: {row}')
+                                logger.debug(f'line:{i}, id:${row["ID"]}, key:{key}, val:{v}')
+                                #row['meta'][key].append(v)
+                                error = True
+                                break
+                    if error:
+                        break
 
             test_id = row.get('question-ID')
             if test_id is None:
@@ -162,12 +165,22 @@ def merge_json_files(
                 #    logger.debug('OK test ID: %s', test_id)
                 test_ids.add(test_id)
 
+            id_fields = row['ID'].split('-')
+            question_id = int(id_fields[-2])
+            answer_id = int(id_fields[-1])
+            old_row = None
+            old_meta = None
+            if check_loaded:
+                answers = map_question_id_to_answers.get(question_id)
+                if answers:
+                    if answer_id > 0 and answer_id <= len(answers):
+                        old_row = answers[answer_id-1]
+                        old_meta = old_row.get('meta')
+
             question = row['text']
             #answers = []
             if question not in map_question_to_id:
                 if check_loaded:
-                    id_fields = row['ID'].split('-')
-                    question_id = int(id_fields[-2])
                     #except_ids = [
                     #    4735,
                     #    4757,
@@ -201,7 +214,7 @@ def merge_json_files(
                                 logger.debug(f'question[j]: {question[j:j+1]}')
                                 break
                         raise ValueError(f'Question not loaded: {question}')
-                else:
+                else: # not check_loaded
                     question_id = stat['max_question_id'] + 1
                     stat['max_question_id'] = question_id
                     stat['num_questions'] += 1
@@ -214,7 +227,7 @@ def merge_json_files(
                     answers = []
                     #map_question_id_to_answers[question_id] = []
                     map_question_id_to_answers[question_id] = answers
-            else:
+            else: # question in map_question_to_id
                 prev_id = map_question_to_id[question]
                 prev_row = map_question_id_to_answers[prev_id][0]
                 #if not allow_duplicate_question:
@@ -260,10 +273,17 @@ def merge_json_files(
                     #]
                     #if len(answers) == 1 and row['ID'] in except_ids:
                     if len(answers) == 1:
-                        # 何かの手違いで回答文が変わってしまっている
+                        # 回答文が変わっている
                         # 修正後の回答文のみを出力するため回答文一覧をリセットする
+                        #logger.debug('old answers: %s', answers)
+                        #logger.debug('old answer: %s', answers[0]['output'])
+                        #logger.debug('new answer: %s', answer)
+                        if answers[0]['output'] != answer:
+                            #logger.debug('old answer: %s', answers[0]['output'])
+                            #logger.debug('new answer: %s', answer)
+                            stat['num_modified_answers'] += 1
                         answers = []
-                        stat['num_modified_answers'] += 1
+                        map_question_id_to_answers[question_id] = answers
                     else:
                         logger.debug('line: %s', i)
                         logger.debug('id: %s', row['ID'])
@@ -325,38 +345,42 @@ def merge_json_files(
                     #                logger.debug(f'line:{i}, id:${row["ID"]}, key:{key}, val:{v}')
                     #                #row['meta'][key].append(v)
                     #                break
-                    for key in old_row['meta'].keys():
-                        old_value = old_row['meta'][key]
-                        new_value = row['meta'][key]
-                        #if old_value or old_value == 0 or old_value == False:
-                        #if key in [
-                        #    'alert-type',
-                        #    'time-dependency',
-                        #]:
-                        #    continue
-                        if old_value or old_value in [0, False, []]:
-                        #if old_value and not new_value:
-                        #if old_value != new_value:
-                            #if new_value == []:
-                            if new_value != old_value and new_value in [None]:
-                            #if new_value != old_value and new_value in [None, []]:
-                            #if new_value != old_value and new_value in [False, None, []]:
-                                if key not in [
-                                    #'alert-type',
-                                    #'time-dependency',
-                                    'output-reference'
-                                    #'domain',
-                                    #'output-type',
-                                    #'perspective',
-                                    #'source-to-answer',
-                                    #'task',
-                                ]:
-                                    logger.debug(f'line:{i}, id:${row["ID"]}, key:{key}')
-                                    logger.debug(f'old_value: {old_value}')
-                                    logger.debug(f'new_value: {new_value}')
-                                #logger.debug(f'before: {row["meta"][key]}')
-                                row['meta'][key] = old_value
-                                #logger.debug(f'after: {row["meta"][key]}')
+                    meta = row.get('meta')
+                    if meta:
+                        for key in old_row['meta'].keys():
+                            old_value = old_row['meta'][key]
+                            new_value = row['meta'][key]
+                            #if old_value or old_value == 0 or old_value == False:
+                            #if key in [
+                            #    'alert-type',
+                            #    'time-dependency',
+                            #]:
+                            #    continue
+                            if old_value or old_value in [0, False, []]:
+                            #if old_value and not new_value:
+                            #if old_value != new_value:
+                                #if new_value == []:
+                                if new_value != old_value and new_value in [None]:
+                                #if new_value != old_value and new_value in [None, []]:
+                                #if new_value != old_value and new_value in [False, None, []]:
+                                    if key not in [
+                                        #'alert-type',
+                                        #'time-dependency',
+                                        'output-reference'
+                                        #'domain',
+                                        #'output-type',
+                                        #'perspective',
+                                        #'source-to-answer',
+                                        #'task',
+                                    ]:
+                                        logger.debug(f'line:{i}, id:${row["ID"]}, key:{key}')
+                                        logger.debug(f'old_value: {old_value}')
+                                        logger.debug(f'new_value: {new_value}')
+                                    #logger.debug(f'before: {row["meta"][key]}')
+                                    row['meta'][key] = old_value
+                                    #logger.debug(f'after: {row["meta"][key]}')
+                    #else:
+                    #    row['meta'] = old_row['meta']
                     answers[answer_id-1] = row
                 else:
                     raise ValueError(f'Duplicate answer: {answer[:100]}')
@@ -381,6 +405,8 @@ def merge_json_files(
                 row['ID'] = prefix
             if 'file' in row:
                 del row['file']
+            if meta is None:
+                row['meta'] = old_meta
             rows.append(row)
     #if output_path.endswith('.json'):
     #    with open(output_path, 'w', encoding='utf-8') as f:
@@ -403,6 +429,38 @@ def merge_json_files(
     #        raise ValueError(f'Invalid path: {output_stat_path}')
     #logger.debug(f'Stat:\n{str_stat_json}')
     return rows
+
+def delete_paths(
+    paths: list[str],
+):
+    for path in paths:
+        logger.debug(f'loading: {path}')
+        rows = load_json_array(path)
+        for row in rows:
+            id_fields = row['ID'].split('-')
+            target_question_id = int(id_fields[-2])
+            target_answer_id = int(id_fields[-1])
+            if target_question_id in map_question_id_to_answers:
+                answers = map_question_id_to_answers[target_question_id]
+                changed = False
+                text = None
+                new_answers = []
+                for i, answer in enumerate(answers):
+                    answer_id_fields = answer['ID'].split('-')
+                    answer_id = int(answer_id_fields[-1])
+                    if answer_id == target_answer_id:
+                        stat['num_deleted_records'] += 1
+                        changed = True
+                        text = answer['text']
+                    else:
+                        new_answers.append(answer)
+                if changed:
+                    if new_answers:
+                        map_question_id_to_answers[target_question_id] = new_answers
+                    else:
+                        del map_question_id_to_answers[target_question_id]
+                        del map_id_to_question[target_question_id]
+                        del map_question_to_id[text]
 
 def output_json(
     rows,
@@ -493,6 +551,7 @@ def merge_single(
             continue
         answer = answers[0]
         single_rows.append(answer)
+        #logger.debug(f'answer: {answer}')
         for field in answer['meta'].keys():
             if field == 'output-reference':
                 continue
@@ -627,6 +686,11 @@ if __name__ == '__main__':
         action='store_true',
         help='Skip duplicated questions',
     )
+    parser.add_argument(
+        '--delete-paths',
+        type=str, nargs='+',
+        help='Paths to delete JSON records',
+    )
     args = parser.parse_args()
     logger.debug('args: %s', args)
     if args.previous_paths:
@@ -661,6 +725,8 @@ if __name__ == '__main__':
             check_loaded=False,
             fix_id=args.fix_id,
         )
+    if args.delete_paths:
+        delete_paths(args.delete_paths)
     if args.output:
         output_json(rows, args.output, args.indent, sort=True)
     if args.merge_single_path:
