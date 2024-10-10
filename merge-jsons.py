@@ -5,6 +5,8 @@ import argparse
 import json
 import sys
 
+from collections import OrderedDict
+
 #from . common.json_functions import load_json_array
 from common.json_functions import load_json_array
 
@@ -696,15 +698,19 @@ if __name__ == '__main__':
     if args.previous_paths:
         for previous_path in args.previous_paths:
             load_previous_json(previous_path)
-    rows = []
+    #rows = []
+    map_id_to_row = OrderedDict()
     if args.fixed_paths:
-        rows += merge_json_files(
+        #rows += merge_json_files(
+        new_rows = merge_json_files(
             args.fixed_paths,
             args.prefix,
             args.question_index_length,
             args.answer_index_length,
             check_loaded=True,
         )
+        for row in new_rows:
+            map_id_to_row[row['ID']] = row
     if args.new_paths:
         #allow_duplicated_question = False
         check_duplicated_question_mode = 'error'
@@ -713,7 +719,8 @@ if __name__ == '__main__':
             check_duplicated_question_mode = 'allow'
         if args.skip_duplicated_questions:
             check_duplicated_question_mode = 'skip'
-        rows += merge_json_files(
+        #rows += merge_json_files(
+        new_rows = merge_json_files(
             #args.json_paths,
             args.new_paths,
             args.prefix,
@@ -725,9 +732,12 @@ if __name__ == '__main__':
             check_loaded=False,
             fix_id=args.fix_id,
         )
+        for row in new_rows:
+            map_id_to_row[row['ID']] = row
     if args.delete_paths:
         delete_paths(args.delete_paths)
     if args.output:
+        rows = list(map_id_to_row.values())
         output_json(rows, args.output, args.indent, sort=True)
     if args.merge_single_path:
         merge_single(args.merge_single_path, args.indent)
